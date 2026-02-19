@@ -27,9 +27,12 @@ class CarState(CarStateBase):
 
     ret = structs.CarState()
 
+    # APA cars (e.g. 2015-19 Edge) broadcast SteeringPinion_Data_Alt (0x85) instead of SteeringPinion_Data (0x7E)
+    pinion_msg = "SteeringPinion_Data_Alt" if self.CP.flags & FordFlags.APA else "SteeringPinion_Data"
+
     # Occasionally on startup, the ABS module recalibrates the steering pinion offset, so we need to block engagement
     # The vehicle usually recovers out of this state within a minute of normal driving
-    ret.vehicleSensorsInvalid = cp.vl["SteeringPinion_Data"]["StePinCompAnEst_D_Qf"] != 3
+    ret.vehicleSensorsInvalid = cp.vl[pinion_msg]["StePinCompAnEst_D_Qf"] != 3
 
     # car speed
     ret.vEgoRaw = cp.vl["BrakeSysFeatures"]["Veh_V_ActlBrk"] * CV.KPH_TO_MS
@@ -46,7 +49,7 @@ class CarState(CarStateBase):
     ret.parkingBrake = cp.vl["DesiredTorqBrk"]["PrkBrkStatus"] in (1, 2)
 
     # steering wheel
-    ret.steeringAngleDeg = cp.vl["SteeringPinion_Data"]["StePinComp_An_Est"]
+    ret.steeringAngleDeg = cp.vl[pinion_msg]["StePinComp_An_Est"]
     ret.steeringTorque = cp.vl["EPAS_INFO"]["SteeringColumnTorque"]
     ret.steeringPressed = self.update_steering_pressed(abs(ret.steeringTorque) > CarControllerParams.STEER_DRIVER_ALLOWANCE, 5)
     ret.steerFaultTemporary = cp.vl["EPAS_INFO"]["EPAS_Failure"] == 1
@@ -64,7 +67,8 @@ class CarState(CarStateBase):
         ret.steerFaultTemporary = True
 
     # cruise state
-    is_metric = cp.vl["INSTRUMENT_PANEL"]["METRIC_UNITS"] == 1 if not self.CP.flags & FordFlags.CANFD else False
+    # APA cars (2015-19 Edge) don't broadcast INSTRUMENT_PANEL (0x43A); default to mph (is_metric=False)
+    is_metric = False if self.CP.flags & FordFlags.APA else (cp.vl["INSTRUMENT_PANEL"]["METRIC_UNITS"] == 1 if not self.CP.flags & FordFlags.CANFD else False)
     ret.cruiseState.speed = cp.vl["EngBrakeData"]["Veh_V_DsplyCcSet"] * (CV.KPH_TO_MS if is_metric else CV.MPH_TO_MS)
     ret.cruiseState.enabled = cp.vl["EngBrakeData"]["CcStat_D_Actl"] in (4, 5)
     ret.cruiseState.available = cp.vl["EngBrakeData"]["CcStat_D_Actl"] in (3, 4, 5)
@@ -76,8 +80,12 @@ class CarState(CarStateBase):
 
     # gear
     if self.CP.transmissionType == TransmissionType.automatic:
-      gear = self.shifter_values.get(cp.vl["PowertrainData_10"]["TrnRng_D_Rq"])
-      ret.gearShifter = self.parse_gear_shifter(gear)
+      if self.CP.flags & FordFlags.APA:
+        # APA cars (2015-19 Edge) don't broadcast PowertrainData_10 (0x176); default to drive
+        ret.gearShifter = GearShifter.drive
+      else:
+        gear = self.shifter_values.get(cp.vl["PowertrainData_10"]["TrnRng_D_Rq"])
+        ret.gearShifter = self.parse_gear_shifter(gear)
     elif self.CP.transmissionType == TransmissionType.manual:
       if bool(cp.vl["BCM_Lamp_Stat_FD1"]["RvrseLghtOn_B_Stat"]):
         ret.gearShifter = GearShifter.reverse
@@ -124,7 +132,24 @@ class CarState(CarStateBase):
 
   @staticmethod
   def get_can_parsers(CP):
+    pt_messages = []
+    cam_messages = []
+    if CP.flags & FordFlags.APA:
+      # Lane_Assist_Data3_FD1 (0x3CC) may not transmit until LKAS is active on the 2015-19 Edge.
+      # Pre-register with ignore_alive so cp.can_valid stays True if it hasn't arrived yet;
+      # values are still updated when the message does arrive.
+      pt_messages = [
+        ("Lane_Assist_Data3_FD1", float('nan')),
+      ]
+      # 2015-19 Edge camera CAN (bus 2) may not carry these IPMA messages.
+      # Pre-register with ignore_alive so cp_cam.can_valid stays True regardless.
+      cam_messages = [
+        ("ACCDATA", float('nan')),
+        ("ACCDATA_2", float('nan')),
+        ("ACCDATA_3", float('nan')),
+        ("IPMA_Data", float('nan')),
+      ]
     return {
-      Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CanBus(CP).main),
-      Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CanBus(CP).camera),
+      Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], pt_messages, CanBus(CP).main),
+      Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], cam_messages, CanBus(CP).camera),
     }
