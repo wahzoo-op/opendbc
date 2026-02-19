@@ -54,6 +54,10 @@ class CarInterface(CarInterfaceBase):
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.LONG_CONTROL.value
       ret.openpilotLongitudinalControl = True
 
+    if ret.flags & FordFlags.APA:
+      ret.steerActuatorDelay = 0.3
+      ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
+
     if ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.CANFD.value
 

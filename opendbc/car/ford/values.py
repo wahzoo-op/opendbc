@@ -16,6 +16,7 @@ Ecu = CarParams.Ecu
 class CarControllerParams:
   STEER_STEP = 5        # LateralMotionControl, 20Hz
   LKA_STEP = 3          # Lane_Assist_Data1, 33Hz
+  APA_STEER_STEP = 3    # Lane_Assist_Data1 APA angle control, 33Hz
   ACC_CONTROL_STEP = 2  # ACCDATA, 50Hz
   LKAS_UI_STEP = 100    # IPMA_Data, 1Hz
   ACC_UI_STEP = 20      # ACCDATA_3, 5Hz
@@ -47,11 +48,13 @@ class CarControllerParams:
 class FordSafetyFlags(IntFlag):
   LONG_CONTROL = 1
   CANFD = 2
+  APA = 4
 
 
 class FordFlags(IntFlag):
   # Static flags
   CANFD = 1
+  APA = 2
 
 
 class RADAR:
@@ -105,6 +108,17 @@ class FordPlatformConfig(PlatformConfig):
 
 
 @dataclass
+class FordAPAPlatformConfig(FordPlatformConfig):
+  dbc_dict: DbcDict = field(default_factory=lambda: {
+    Bus.pt: 'ford_lincoln_base_pt',
+  })
+
+  def init(self):
+    super().init()
+    self.flags |= FordFlags.APA
+
+
+@dataclass
 class FordCANFDPlatformConfig(FordPlatformConfig):
   dbc_dict: DbcDict = field(default_factory=lambda: {
     Bus.pt: 'ford_lincoln_base_pt',
@@ -125,6 +139,10 @@ class FordF150LightningPlatform(FordCANFDPlatformConfig):
 
 
 class CAR(Platforms):
+  FORD_EDGE_MK2 = FordAPAPlatformConfig(
+    [FordCarDocs("Ford Edge 2015-19")],
+    CarSpecs(mass=1950, wheelbase=2.850, steerRatio=18.0),
+  )
   FORD_BRONCO_SPORT_MK1 = FordPlatformConfig(
     [FordCarDocs("Ford Bronco Sport 2021-24")],
     CarSpecs(mass=1625, wheelbase=2.67, steerRatio=17.7),

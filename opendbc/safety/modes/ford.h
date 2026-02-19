@@ -162,6 +162,8 @@ static void ford_rx_hook(const CANPacket_t *msg) {
   }
 }
 
+static bool ford_apa = false;
+
 static bool ford_tx_hook(const CANPacket_t *msg) {
   const LongitudinalLimits FORD_LONG_LIMITS = {
     // acceleration cmd limits (used for brakes)
@@ -225,13 +227,19 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
 
   // Safety check for Lane_Assist_Data1 action
   if (msg->addr == FORD_Lane_Assist_Data1) {
-    // Do not allow steering using Lane_Assist_Data1 (Lane-Departure Aid).
-    // This message must be sent for Lane Centering to work, and can include
-    // values such as the steering angle or lane curvature for debugging,
-    // but the action (LkaActvStats_D2_Req) must be set to zero.
     unsigned int action = msg->data[0] >> 5;
-    if (action != 0U) {
-      tx = false;
+    if (ford_apa) {
+      // APA mode: allow action 2 (LkaStandIntervLeft) and 4 (LkaStandIntervRight)
+      // for direct angle control. Zero out when controls not allowed.
+      bool valid_action = (action == 0U) || (action == 2U) || (action == 4U);
+      if (!valid_action || (!controls_allowed && action != 0U)) {
+        tx = false;
+      }
+    } else {
+      // Non-APA: action must always be zero (LDA passthru only)
+      if (action != 0U) {
+        tx = false;
+      }
     }
   }
 
@@ -328,7 +336,9 @@ static safety_config ford_init(uint16_t param) {
   };
 
   const uint16_t FORD_PARAM_CANFD = 2;
+  const uint16_t FORD_PARAM_APA = 4;
   const bool ford_canfd = GET_FLAG(param, FORD_PARAM_CANFD);
+  ford_apa = GET_FLAG(param, FORD_PARAM_APA);
 
   bool ford_longitudinal = false;
 

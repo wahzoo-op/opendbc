@@ -33,6 +33,31 @@ def calculate_lat_ctl2_checksum(mode: int, counter: int, dat: bytearray) -> int:
   return 0xFF - (checksum & 0xFF)
 
 
+def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, curvature: float = 0.):
+  """
+  Creates a CAN message for Ford APA (Active Park Assist) angle-based steering.
+
+  Used on Ford Edge (APA_CAR). Sends a direct angle command to the PSCM via
+  Lane_Assist_Data1. Action 2=LkaStandIntervLeft, 4=LkaStandIntervRight allow
+  the PSCM to track the requested angle when LaActAvail_D_Actl is 2 or 3.
+
+  Frequency is 33Hz.
+  """
+  if enabled:
+    action = 2 if angle >= 0 else 4
+  else:
+    action = 0
+  values = {
+    "LkaActvStats_D2_Req": action,
+    "LaRefAng_No_Req": angle,
+    "LaCurvature_No_Calc": curvature,
+    "LdwActvStats_D_Req": 0,
+    "LkaDrvOvrrd_D_Rq": 0,
+    "LaRampType_B_Req": 0,
+  }
+  return packer.make_can_msg("Lane_Assist_Data1", CAN.main, values)
+
+
 def create_lka_msg(packer, CAN: CanBus):
   """
   Creates an empty CAN message for the Ford LKA Command.
