@@ -335,6 +335,19 @@ static safety_config ford_init(uint16_t param) {
     {FORD_LateralMotionControl, 0, 8, .check_relay = true},
   };
 
+  // APA (Active Park Assist) angle-control mode used on 2015-19 Ford Edge.
+  // The stock IPMA continues to broadcast Lane_Assist_Data1, ACCDATA_3, and IPMA_Data
+  // on the main HS-CAN via the GWM gateway. Since we coexist with the stock IPMA
+  // rather than replacing it, all relay checks must be disabled to avoid a false
+  // relay malfunction fault.
+  static const CanMsg FORD_APA_TX_MSGS[] = {
+    {FORD_Steering_Data_FD1, 0, 8, .check_relay = false},
+    {FORD_Steering_Data_FD1, 2, 8, .check_relay = false},
+    {FORD_ACCDATA_3, 0, 8, .check_relay = false},
+    {FORD_Lane_Assist_Data1, 0, 8, .check_relay = false},
+    {FORD_IPMA_Data, 0, 8, .check_relay = false},
+  };
+
   const uint16_t FORD_PARAM_CANFD = 2;
   const uint16_t FORD_PARAM_APA = 4;
   const bool ford_canfd = GET_FLAG(param, FORD_PARAM_CANFD);
@@ -351,7 +364,9 @@ static safety_config ford_init(uint16_t param) {
   ford_longitudinal = !ford_canfd || ford_longitudinal;
 
   safety_config ret;
-  if (ford_canfd) {
+  if (ford_apa) {
+    ret = BUILD_SAFETY_CFG(ford_rx_checks, FORD_APA_TX_MSGS);
+  } else if (ford_canfd) {
     ret = ford_longitudinal ? BUILD_SAFETY_CFG(ford_rx_checks, FORD_CANFD_LONG_TX_MSGS) : \
                               BUILD_SAFETY_CFG(ford_rx_checks, FORD_CANFD_STOCK_TX_MSGS);
   } else {
