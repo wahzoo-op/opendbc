@@ -63,12 +63,10 @@ class CarState(CarStateBase):
       ret.steerFaultTemporary |= cp.vl["Lane_Assist_Data3_FD1"]["LatCtlSte_D_Stat"] not in (1, 2, 3)
 
     if self.CP.flags & FordFlags.APA:
-      # Track PSCM APA availability. Value 0 = locked out (e.g. above APA speed limit).
-      # Values 1/2/3 = available/active; don't fault on those because the PSCM may report
-      # 1 (available-not-yet-active) even when it is accepting angle commands.
+      # Track PSCM APA availability for telemetry; old code never faulted on this signal.
+      # The PSCM starts at 0 by default until Lane_Assist_Data3_FD1 arrives, so any
+      # steerFaultTemporary check here would fire immediately and cause a controls mismatch.
       self.lkas_state = cp.vl["Lane_Assist_Data3_FD1"]["LaActAvail_D_Actl"]
-      if ret.cruiseState.enabled and ret.vEgoRaw > 5.8 and self.lkas_state == 0:
-        ret.steerFaultTemporary = True
 
     # cruise state
     # APA cars (2015-19 Edge) don't broadcast INSTRUMENT_PANEL (0x43A); default to mph (is_metric=False)
