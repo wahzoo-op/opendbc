@@ -31,8 +31,10 @@ class CarState(CarStateBase):
     pinion_msg = "SteeringPinion_Data_Alt" if self.CP.flags & FordFlags.APA else "SteeringPinion_Data"
 
     # Occasionally on startup, the ABS module recalibrates the steering pinion offset, so we need to block engagement
-    # The vehicle usually recovers out of this state within a minute of normal driving
-    ret.vehicleSensorsInvalid = cp.vl[pinion_msg]["StePinCompAnEst_D_Qf"] != 3
+    # The vehicle usually recovers out of this state within a minute of normal driving.
+    # APA cars (2015-19 Edge): StePinCompAnEst_D_Qf in SteeringPinion_Data_Alt never reaches 3
+    # on this platform; skip the check to avoid a permanent vehicleSensorsInvalid block.
+    ret.vehicleSensorsInvalid = False if self.CP.flags & FordFlags.APA else cp.vl[pinion_msg]["StePinCompAnEst_D_Qf"] != 3
 
     # car speed
     ret.vEgoRaw = cp.vl["BrakeSysFeatures"]["Veh_V_ActlBrk"] * CV.KPH_TO_MS
