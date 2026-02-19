@@ -63,9 +63,11 @@ class CarState(CarStateBase):
       ret.steerFaultTemporary |= cp.vl["Lane_Assist_Data3_FD1"]["LatCtlSte_D_Stat"] not in (1, 2, 3)
 
     if self.CP.flags & FordFlags.APA:
-      # Track PSCM APA availability; must be 2 or 3 for active angle control
+      # Track PSCM APA availability. Value 0 = locked out (e.g. above APA speed limit).
+      # Values 1/2/3 = available/active; don't fault on those because the PSCM may report
+      # 1 (available-not-yet-active) even when it is accepting angle commands.
       self.lkas_state = cp.vl["Lane_Assist_Data3_FD1"]["LaActAvail_D_Actl"]
-      if ret.cruiseState.enabled and ret.vEgoRaw > 5.8 and self.lkas_state not in (2, 3):
+      if ret.cruiseState.enabled and ret.vEgoRaw > 5.8 and self.lkas_state == 0:
         ret.steerFaultTemporary = True
 
     # cruise state
