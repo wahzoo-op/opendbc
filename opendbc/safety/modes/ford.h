@@ -335,6 +335,20 @@ static safety_config ford_init(uint16_t param) {
     {FORD_LateralMotionControl, 0, 8, .check_relay = true},
   };
 
+  // APA (Active Park Assist) RX checks for 2015-19 Ford Edge.
+  // The 2018 Edge's BrakeSysFeatures and Yaw_Data_FD1 quality flags (VehVActlBrk_D_Qf,
+  // VehYawWActl_D_Qf) are not always 3 at startup, which immediately sets
+  // safetyRxChecksInvalid=True and permanently blocks engagement. Use ignore_quality_flag
+  // to match the behavior of the old simpler panda safety that worked on this platform.
+  static RxCheck ford_apa_rx_checks[] = {
+    {.msg = {{FORD_BrakeSysFeatures, 0, 8, 50U, .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_EngVehicleSpThrottle2, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_Yaw_Data_FD1, 0, 8, 100U, .max_counter = 255U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_EngBrakeData, 0, 8, 10U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_EngVehicleSpThrottle, 0, 8, 100U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_DesiredTorqBrk, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
+  };
+
   // APA (Active Park Assist) angle-control mode used on 2015-19 Ford Edge.
   // The stock IPMA continues to broadcast Lane_Assist_Data1, ACCDATA_3, and IPMA_Data
   // on the main HS-CAN via the GWM gateway. Since we coexist with the stock IPMA
@@ -365,7 +379,7 @@ static safety_config ford_init(uint16_t param) {
 
   safety_config ret;
   if (ford_apa) {
-    ret = BUILD_SAFETY_CFG(ford_rx_checks, FORD_APA_TX_MSGS);
+    ret = BUILD_SAFETY_CFG(ford_apa_rx_checks, FORD_APA_TX_MSGS);
   } else if (ford_canfd) {
     ret = ford_longitudinal ? BUILD_SAFETY_CFG(ford_rx_checks, FORD_CANFD_LONG_TX_MSGS) : \
                               BUILD_SAFETY_CFG(ford_rx_checks, FORD_CANFD_STOCK_TX_MSGS);
