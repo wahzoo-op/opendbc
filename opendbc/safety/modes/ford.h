@@ -342,7 +342,7 @@ static safety_config ford_init(uint16_t param) {
   // to match the behavior of the old simpler panda safety that worked on this platform.
   static RxCheck ford_apa_rx_checks[] = {
     {.msg = {{FORD_BrakeSysFeatures, 0, 8, 50U, .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
-    {.msg = {{FORD_EngVehicleSpThrottle2, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_EngVehicleSpThrottle2, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{FORD_Yaw_Data_FD1, 0, 8, 100U, .max_counter = 255U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{FORD_EngBrakeData, 0, 8, 10U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{FORD_EngVehicleSpThrottle, 0, 8, 100U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
