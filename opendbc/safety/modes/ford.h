@@ -336,14 +336,14 @@ static safety_config ford_init(uint16_t param) {
   };
 
   // APA (Active Park Assist) RX checks for 2015-19 Ford Edge.
-  // The 2018 Edge's BrakeSysFeatures and Yaw_Data_FD1 quality flags (VehVActlBrk_D_Qf,
-  // VehYawWActl_D_Qf) are not always 3 at startup, which immediately sets
-  // safetyRxChecksInvalid=True and permanently blocks engagement. Use ignore_quality_flag
-  // to match the behavior of the old simpler panda safety that worked on this platform.
+  // The 2018 Edge's quality flags (VehVActlBrk_D_Qf, VehVActlEng_D_Qf, VehYawWActl_D_Qf)
+  // are unreliable at startup and during driving. The counter on BrakeSysFeatures and
+  // Yaw_Data_FD1 also intermittently skips on this platform, causing safetyRxChecksInvalid
+  // to fire mid-drive. Ignore all three checks for these messages on APA mode.
   static RxCheck ford_apa_rx_checks[] = {
-    {.msg = {{FORD_BrakeSysFeatures, 0, 8, 50U, .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_BrakeSysFeatures, 0, 8, 50U, .max_counter = 15U, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{FORD_EngVehicleSpThrottle2, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
-    {.msg = {{FORD_Yaw_Data_FD1, 0, 8, 100U, .max_counter = 255U, .ignore_quality_flag = true}, { 0 }, { 0 }}},
+    {.msg = {{FORD_Yaw_Data_FD1, 0, 8, 100U, .max_counter = 255U, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{FORD_EngBrakeData, 0, 8, 10U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{FORD_EngVehicleSpThrottle, 0, 8, 100U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
     {.msg = {{FORD_DesiredTorqBrk, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
