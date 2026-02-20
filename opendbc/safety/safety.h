@@ -481,6 +481,15 @@ int set_safety_hooks(uint16_t mode, uint16_t param) {
     // reset all dynamic fields in addr struct
     for (int j = 0; j < current_safety_config.rx_checks_len; j++) {
       current_safety_config.rx_checks[j].status = (RxStatus){0};
+      // Initialize validity flags from ignore settings so checks with ignore_*=true
+      // don't produce false invalids before the first message receipt after safety mode init.
+      current_safety_config.rx_checks[j].status.valid_checksum =
+          current_safety_config.rx_checks[j].msg[0].ignore_checksum;
+      current_safety_config.rx_checks[j].status.valid_quality_flag =
+          current_safety_config.rx_checks[j].msg[0].ignore_quality_flag;
+      // Initialize last_timestamp to now so safety_tick()'s lagging check does not fire
+      // immediately before the first message of each type arrives after safety mode init.
+      current_safety_config.rx_checks[j].status.last_timestamp = microsecond_timer_get();
     }
   }
   return set_status;
