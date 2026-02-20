@@ -44,7 +44,9 @@ def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, c
   Frequency is 33Hz.
   """
   if enabled:
-    action = 2 if angle >= 0 else 4
+    # Positive angle = steer RIGHT (SAE convention, matches StePinRelInit_An_Sns positive=right).
+    # LkaStandIntervRight(4) must accompany positive (right) angles; Left(2) for negative (left).
+    action = 4 if angle >= 0 else 2
   else:
     action = 0
   values = {
