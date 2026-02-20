@@ -16,6 +16,7 @@ APA_ANGLE_MAX_V = [40., 15.]      # max angle degrees at each speed
 APA_ANGLE_DELTA_V = [5., .8, .15]    # windup rate limits deg/step
 APA_ANGLE_DELTA_VU = [5., 3.5, 0.4]  # unwind rate limits deg/step
 APA_ANGLE_DELTA_BP = [0., 5., 15.]   # speed breakpoints for rate limits
+APA_DEG_TO_MRAD = math.pi / 180. * 1000.  # degrees to milliradians for LaRefAng_No_Req
 
 # CAN FD limits:
 # Limit to average banked road since safety doesn't have the roll
@@ -110,14 +111,14 @@ class CarController(CarControllerBase):
       # APA angle-based steering for Edge: send at 33Hz via Lane_Assist_Data1
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
-          angle_mrad = actuators.steeringAngleDeg * 1000.
-          angle_lim = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_MAX_BP, APA_ANGLE_MAX_V)) * 1000.
+          angle_mrad = actuators.steeringAngleDeg * APA_DEG_TO_MRAD
+          angle_lim = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_MAX_BP, APA_ANGLE_MAX_V)) * APA_DEG_TO_MRAD
           angle_mrad = float(np.clip(angle_mrad, -angle_lim, angle_lim))
           # rate limiting
           if angle_mrad > self.apply_angle_last:
-            max_delta = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_DELTA_BP, APA_ANGLE_DELTA_V)) * 1000.
+            max_delta = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_DELTA_BP, APA_ANGLE_DELTA_V)) * APA_DEG_TO_MRAD
           else:
-            max_delta = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_DELTA_BP, APA_ANGLE_DELTA_VU)) * 1000.
+            max_delta = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_DELTA_BP, APA_ANGLE_DELTA_VU)) * APA_DEG_TO_MRAD
           angle_mrad = float(np.clip(angle_mrad, self.apply_angle_last - max_delta, self.apply_angle_last + max_delta))
         else:
           angle_mrad = 0.
@@ -224,7 +225,7 @@ class CarController(CarControllerBase):
 
     new_actuators = actuators.as_builder()
     if self.CP.flags & FordFlags.APA:
-      new_actuators.steeringAngleDeg = self.apply_angle_last / 1000.
+      new_actuators.steeringAngleDeg = self.apply_angle_last / APA_DEG_TO_MRAD
     else:
       new_actuators.curvature = self.apply_curvature_last
     new_actuators.accel = self.accel

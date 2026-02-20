@@ -51,7 +51,11 @@ class CarState(CarStateBase):
     ret.parkingBrake = cp.vl["DesiredTorqBrk"]["PrkBrkStatus"] in (1, 2)
 
     # steering wheel
-    ret.steeringAngleDeg = cp.vl[pinion_msg]["StePinComp_An_Est"]
+    # APA cars (2015-19 Edge): StePinComp_An_Est requires quality flag = 3 which the 2018 Edge
+    # never achieves, yielding a stuck -1600 deg reading. StePinRelInit_An_Sns is the raw
+    # initialized sensor value broadcast to the IPMA for LKA and is valid throughout driving.
+    steer_angle_sig = "StePinRelInit_An_Sns" if self.CP.flags & FordFlags.APA else "StePinComp_An_Est"
+    ret.steeringAngleDeg = cp.vl[pinion_msg][steer_angle_sig]
     ret.steeringTorque = cp.vl["EPAS_INFO"]["SteeringColumnTorque"]
     ret.steeringPressed = self.update_steering_pressed(abs(ret.steeringTorque) > CarControllerParams.STEER_DRIVER_ALLOWANCE, 5)
     ret.steerFaultTemporary = cp.vl["EPAS_INFO"]["EPAS_Failure"] == 1
