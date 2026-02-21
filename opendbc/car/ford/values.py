@@ -55,6 +55,7 @@ class FordFlags(IntFlag):
   # Static flags
   CANFD = 1
   APA = 2
+  PINION_ALT = 4  # 2015-19 Edge: uses SteeringPinion_Data_Alt and StePinRelInit_An_Sns
 
 
 class RADAR:
@@ -119,6 +120,20 @@ class FordAPAPlatformConfig(FordPlatformConfig):
 
 
 @dataclass
+class FordPinionAltPlatformConfig(FordPlatformConfig):
+  """2015-19 Ford Edge: uses SteeringPinion_Data_Alt for angle feedback.
+  Uses standard LateralMotionControl curvature path at highway speed.
+  Panda still uses APA rx_checks (lenient) for Edge's unreliable CAN messages."""
+  dbc_dict: DbcDict = field(default_factory=lambda: {
+    Bus.pt: 'ford_lincoln_base_pt',
+  })
+
+  def init(self):
+    super().init()
+    self.flags |= FordFlags.PINION_ALT
+
+
+@dataclass
 class FordCANFDPlatformConfig(FordPlatformConfig):
   dbc_dict: DbcDict = field(default_factory=lambda: {
     Bus.pt: 'ford_lincoln_base_pt',
@@ -139,7 +154,7 @@ class FordF150LightningPlatform(FordCANFDPlatformConfig):
 
 
 class CAR(Platforms):
-  FORD_EDGE_MK2 = FordAPAPlatformConfig(
+  FORD_EDGE_MK2 = FordPinionAltPlatformConfig(
     [FordCarDocs("Ford Edge 2015-19")],
     CarSpecs(mass=1950, wheelbase=2.850, steerRatio=18.0),
   )

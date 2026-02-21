@@ -351,17 +351,20 @@ static safety_config ford_init(uint16_t param) {
     {.msg = {{FORD_DesiredTorqBrk, 0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},
   };
 
-  // APA (Active Park Assist) angle-control mode used on 2015-19 Ford Edge.
+  // APA (Active Park Assist) / PINION_ALT mode used on 2015-19 Ford Edge.
   // The stock IPMA continues to broadcast Lane_Assist_Data1, ACCDATA_3, and IPMA_Data
   // on the main HS-CAN via the GWM gateway. Since we coexist with the stock IPMA
   // rather than replacing it, all relay checks must be disabled to avoid a false
-  // relay malfunction fault.
+  // relay malfunction fault. LateralMotionControl and ACCDATA are also relayed by the
+  // GWM on this platform, so check_relay is disabled for them too.
   static const CanMsg FORD_APA_TX_MSGS[] = {
     {FORD_Steering_Data_FD1, 0, 8, .check_relay = false},
     {FORD_Steering_Data_FD1, 2, 8, .check_relay = false},
     {FORD_ACCDATA_3, 0, 8, .check_relay = false},
     {FORD_Lane_Assist_Data1, 0, 8, .check_relay = false},
     {FORD_IPMA_Data, 0, 8, .check_relay = false},
+    {FORD_LateralMotionControl, 0, 8, .check_relay = false},
+    {FORD_ACCDATA, 0, 8, .check_relay = false},
   };
 
   const uint16_t FORD_PARAM_CANFD = 2;

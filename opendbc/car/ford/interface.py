@@ -58,6 +58,12 @@ class CarInterface(CarInterfaceBase):
       ret.steerActuatorDelay = 0.3
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
 
+    if ret.flags & FordFlags.PINION_ALT:
+      # 2015-19 Edge: uses LateralMotionControl curvature path at highway speed.
+      # Panda must still use APA rx_checks for Edge's unreliable CAN quality flags.
+      ret.steerActuatorDelay = 0.3
+      ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
+
     if ret.flags & FordFlags.CANFD:
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.CANFD.value
 
@@ -70,8 +76,8 @@ class CarInterface(CarInterfaceBase):
     else:
       # Lock out if the car does not have needed lateral and longitudinal control APIs.
       # Note that we also check CAN for adaptive cruise, but no known signal for LCA exists
-      # APA cars use angle-based steering via a different API; skip the LCA/TJA check for them.
-      if not (ret.flags & FordFlags.APA):
+      # APA and PINION_ALT cars skip the LCA/TJA firmware check (Edge may not have TJA configured).
+      if not (ret.flags & (FordFlags.APA | FordFlags.PINION_ALT)):
         pscm_config = next((fw for fw in car_fw if fw.ecu == Ecu.eps and b'\x22\xDE\x01' in fw.request), None)
         if pscm_config:
           if len(pscm_config.fwVersion) != 24:

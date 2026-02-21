@@ -27,14 +27,14 @@ class CarState(CarStateBase):
 
     ret = structs.CarState()
 
-    # APA cars (e.g. 2015-19 Edge) broadcast SteeringPinion_Data_Alt (0x85) instead of SteeringPinion_Data (0x7E)
-    pinion_msg = "SteeringPinion_Data_Alt" if self.CP.flags & FordFlags.APA else "SteeringPinion_Data"
+    # 2015-19 Edge (PINION_ALT) broadcasts SteeringPinion_Data_Alt (0x85) instead of SteeringPinion_Data (0x7E)
+    pinion_msg = "SteeringPinion_Data_Alt" if self.CP.flags & FordFlags.PINION_ALT else "SteeringPinion_Data"
 
     # Occasionally on startup, the ABS module recalibrates the steering pinion offset, so we need to block engagement
     # The vehicle usually recovers out of this state within a minute of normal driving.
-    # APA cars (2015-19 Edge): StePinCompAnEst_D_Qf in SteeringPinion_Data_Alt never reaches 3
+    # 2015-19 Edge: StePinCompAnEst_D_Qf in SteeringPinion_Data_Alt never reaches 3
     # on this platform; skip the check to avoid a permanent vehicleSensorsInvalid block.
-    ret.vehicleSensorsInvalid = False if self.CP.flags & FordFlags.APA else cp.vl[pinion_msg]["StePinCompAnEst_D_Qf"] != 3
+    ret.vehicleSensorsInvalid = False if self.CP.flags & FordFlags.PINION_ALT else cp.vl[pinion_msg]["StePinCompAnEst_D_Qf"] != 3
 
     # car speed
     ret.vEgoRaw = cp.vl["BrakeSysFeatures"]["Veh_V_ActlBrk"] * CV.KPH_TO_MS
@@ -51,10 +51,10 @@ class CarState(CarStateBase):
     ret.parkingBrake = cp.vl["DesiredTorqBrk"]["PrkBrkStatus"] in (1, 2)
 
     # steering wheel
-    # APA cars (2015-19 Edge): StePinComp_An_Est requires quality flag = 3 which the 2018 Edge
+    # 2015-19 Edge (PINION_ALT): StePinComp_An_Est requires quality flag = 3 which the 2018 Edge
     # never achieves, yielding a stuck -1600 deg reading. StePinRelInit_An_Sns is the raw
     # initialized sensor value broadcast to the IPMA for LKA and is valid throughout driving.
-    steer_angle_sig = "StePinRelInit_An_Sns" if self.CP.flags & FordFlags.APA else "StePinComp_An_Est"
+    steer_angle_sig = "StePinRelInit_An_Sns" if self.CP.flags & FordFlags.PINION_ALT else "StePinComp_An_Est"
     ret.steeringAngleDeg = cp.vl[pinion_msg][steer_angle_sig]
     ret.steeringTorque = cp.vl["EPAS_INFO"]["SteeringColumnTorque"]
     ret.steeringPressed = self.update_steering_pressed(abs(ret.steeringTorque) > CarControllerParams.STEER_DRIVER_ALLOWANCE, 5)
@@ -66,15 +66,15 @@ class CarState(CarStateBase):
       # this signal is always 0 on non-CAN FD cars
       ret.steerFaultTemporary |= cp.vl["Lane_Assist_Data3_FD1"]["LatCtlSte_D_Stat"] not in (1, 2, 3)
 
-    if self.CP.flags & FordFlags.APA:
-      # Track PSCM APA availability for telemetry; old code never faulted on this signal.
+    if self.CP.flags & FordFlags.PINION_ALT:
+      # Track PSCM LKA availability for telemetry on the 2015-19 Edge.
       # The PSCM starts at 0 by default until Lane_Assist_Data3_FD1 arrives, so any
       # steerFaultTemporary check here would fire immediately and cause a controls mismatch.
       self.lkas_state = cp.vl["Lane_Assist_Data3_FD1"]["LaActAvail_D_Actl"]
 
     # cruise state
-    # APA cars (2015-19 Edge) don't broadcast INSTRUMENT_PANEL (0x43A); default to mph (is_metric=False)
-    is_metric = False if self.CP.flags & FordFlags.APA else (cp.vl["INSTRUMENT_PANEL"]["METRIC_UNITS"] == 1 if not self.CP.flags & FordFlags.CANFD else False)
+    # 2015-19 Edge (PINION_ALT) doesn't broadcast INSTRUMENT_PANEL (0x43A); default to mph (is_metric=False)
+    is_metric = False if self.CP.flags & FordFlags.PINION_ALT else (cp.vl["INSTRUMENT_PANEL"]["METRIC_UNITS"] == 1 if not self.CP.flags & FordFlags.CANFD else False)
     ret.cruiseState.speed = cp.vl["EngBrakeData"]["Veh_V_DsplyCcSet"] * (CV.KPH_TO_MS if is_metric else CV.MPH_TO_MS)
     ret.cruiseState.enabled = cp.vl["EngBrakeData"]["CcStat_D_Actl"] in (4, 5)
     ret.cruiseState.available = cp.vl["EngBrakeData"]["CcStat_D_Actl"] in (3, 4, 5)
@@ -86,8 +86,8 @@ class CarState(CarStateBase):
 
     # gear
     if self.CP.transmissionType == TransmissionType.automatic:
-      if self.CP.flags & FordFlags.APA:
-        # APA cars (2015-19 Edge) don't broadcast PowertrainData_10 (0x176); default to drive
+      if self.CP.flags & FordFlags.PINION_ALT:
+        # 2015-19 Edge doesn't broadcast PowertrainData_10 (0x176); default to drive
         ret.gearShifter = GearShifter.drive
       else:
         gear = self.shifter_values.get(cp.vl["PowertrainData_10"]["TrnRng_D_Rq"])
@@ -140,8 +140,8 @@ class CarState(CarStateBase):
   def get_can_parsers(CP):
     pt_messages = []
     cam_messages = []
-    if CP.flags & FordFlags.APA:
-      # Lane_Assist_Data3_FD1 (0x3CC) may not transmit until LKAS is active on the 2015-19 Edge.
+    if CP.flags & FordFlags.PINION_ALT:
+      # Lane_Assist_Data3_FD1 (0x3CC) may not transmit until LKA is active on the 2015-19 Edge.
       # Pre-register with ignore_alive so cp.can_valid stays True if it hasn't arrived yet;
       # values are still updated when the message does arrive.
       pt_messages = [
