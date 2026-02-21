@@ -44,16 +44,23 @@ def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, c
   Frequency is 33Hz.
   """
   if enabled:
-    # Positive angle = steer RIGHT (SAE convention, matches StePinRelInit_An_Sns positive=right).
-    # LkaStandIntervRight(4) must accompany positive (right) angles; Left(2) for negative (left).
-    action = 4 if angle >= 0 else 2
+    # Per old-DBC comment: "only vals 4, 5, 8, 9 seem to work. 4 and 5 are a bit smoother."
+    # Positive angle = steer RIGHT → action 4 (LkaStandIntervRight)
+    # Negative angle = steer LEFT  → action 5 (LkaSupprRight, not 2/LkaStandIntervLeft)
+    action = 4 if angle >= 0 else 5
+    # LdwActvStats_D_Req=3, LdwActvIntns_D_Req=2 matches old Lkas_Alert=0xe bit pattern
+    ldw_stats = 3
+    ldw_intns = 2
   else:
-    action = 0
+    action = 7  # "NotUsed" — closest to old 0xf disabled state in 3-bit field
+    ldw_stats = 0
+    ldw_intns = 0
   values = {
     "LkaActvStats_D2_Req": action,
     "LaRefAng_No_Req": angle,
     "LaCurvature_No_Calc": curvature,
-    "LdwActvStats_D_Req": 0,
+    "LdwActvStats_D_Req": ldw_stats,
+    "LdwActvIntns_D_Req": ldw_intns,
     "LkaDrvOvrrd_D_Rq": 0,
     "LaRampType_B_Req": 0,
   }
