@@ -110,7 +110,7 @@ class CarController(CarControllerBase):
     if self.CP.flags & FordFlags.APA:
       # APA angle-based steering for Edge: send at 33Hz via Lane_Assist_Data1
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
-        if CC.latActive:
+        if CC.latActive and CS.lkas_state in (2, 3):
           angle_mrad = actuators.steeringAngleDeg * APA_DEG_TO_MRAD
           angle_lim = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_MAX_BP, APA_ANGLE_MAX_V)) * APA_DEG_TO_MRAD
           angle_mrad = float(np.clip(angle_mrad, -angle_lim, angle_lim))

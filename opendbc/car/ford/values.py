@@ -130,7 +130,7 @@ class FordPinionAltPlatformConfig(FordPlatformConfig):
 
   def init(self):
     super().init()
-    self.flags |= FordFlags.PINION_ALT
+    self.flags |= FordFlags.PINION_ALT | FordFlags.APA
 
 
 @dataclass

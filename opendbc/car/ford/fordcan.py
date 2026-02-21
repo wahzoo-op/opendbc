@@ -44,15 +44,13 @@ def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, c
   Frequency is 33Hz.
   """
   if enabled:
-    # Per old-DBC comment: "only vals 4, 5, 8, 9 seem to work. 4 and 5 are a bit smoother."
-    # Positive angle = steer RIGHT → action 4 (LkaStandIntervRight)
-    # Negative angle = steer LEFT  → action 5 (LkaSupprRight, not 2/LkaStandIntervLeft)
-    action = 4 if angle >= 0 else 5
-    # LdwActvStats_D_Req=3, LdwActvIntns_D_Req=2 matches old Lkas_Alert=0xe bit pattern
+    # Action 2 matches ford-devel-lka (Lkas_Action=2 in old DBC) which worked on Edge.
+    # LdwActvStats_D_Req=3, LdwActvIntns_D_Req=2 matches old Lkas_Alert=0xe bit pattern.
+    action = 2
     ldw_stats = 3
     ldw_intns = 2
   else:
-    action = 7  # "NotUsed" — closest to old 0xf disabled state in 3-bit field
+    action = 0
     ldw_stats = 0
     ldw_intns = 0
   values = {
