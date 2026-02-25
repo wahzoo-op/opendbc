@@ -118,6 +118,18 @@ class CarController(CarControllerBase):
         can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, CC.latActive,
                                                           curvature=actuators.curvature))
 
+      # Also send LCA curvature command at 20Hz via LateralMotionControl (0x3D3).
+      # The APA panda safety allows 0x3D3 (check_relay=false). At highway speed where
+      # the PSCM blocks APA (LaActDeny=1), the LCA curvature path may still work if the
+      # Edge PSCM's LCA mode is enabled (via Forscan or natively on this firmware).
+      if (self.frame % CarControllerParams.STEER_STEP) == 0:
+        current_curvature = -CS.out.yawRate / max(CS.out.vEgoRaw, 0.1)
+        self.apply_curvature_last = apply_ford_curvature_limits(actuators.curvature, self.apply_curvature_last,
+                                                                current_curvature, CS.out.vEgoRaw, 0.,
+                                                                CC.latActive, self.CP)
+        can_sends.append(fordcan.create_lat_ctl_msg(self.packer, self.CAN, CC.latActive, 0., 0.,
+                                                    -self.apply_curvature_last, 0.))
+
     else:
       # LCA curvature-based steering for all other supported Ford vehicles
       # send steer msg at 20Hz
@@ -217,11 +229,7 @@ class CarController(CarControllerBase):
     self.lead_distance_bars_last = hud_control.leadDistanceBars
 
     new_actuators = actuators.as_builder()
-    if self.CP.flags & FordFlags.APA:
-      # Feed back applied curvature for the lateral controller's anti-windup
-      new_actuators.curvature = self.apply_angle_last / (self.CP.steerRatio * self.CP.wheelbase * 1000)
-    else:
-      new_actuators.curvature = self.apply_curvature_last
+    new_actuators.curvature = self.apply_curvature_last
     new_actuators.accel = self.accel
     new_actuators.gas = self.gas
 
