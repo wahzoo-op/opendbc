@@ -44,11 +44,11 @@ def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, c
   Frequency is 33Hz.
   """
   if enabled:
-    # action=2: LkaStandIntervLeft  (negative angle = steer left,  correct rightward drift)
-    # action=4: LkaStandIntervRight (positive angle = steer right, correct leftward drift)
-    # Both are allowed by panda in APA mode. Select based on sign so the PSCM
-    # applies torque in the correct direction for bidirectional lane centering.
-    action = 2 if angle <= 0 else 4
+    # action=2 (LkaStandIntervLeft) works bidirectionally on the 2015-19 Edge PSCM —
+    # the PSCM steers in the direction dictated by the signed LaRefAng_No_Req angle.
+    # action=4 (LkaStandIntervRight) triggers LaActDeny_B_Actl=1 on this PSCM,
+    # causing it to refuse commands for most of the drive. Always use action=2.
+    action = 2
     ldw_stats = 3
     ldw_intns = 2
   else:
