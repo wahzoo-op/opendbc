@@ -59,8 +59,10 @@ class CarInterface(CarInterfaceBase):
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
 
     if ret.flags & FordFlags.PINION_ALT:
-      # 2015-19 Edge: uses LateralMotionControl curvature path at highway speed.
-      # Panda must still use APA rx_checks for Edge's unreliable CAN quality flags.
+      # 2015-19 Edge: StePinRelInit_An_Sns re-initializes each power cycle, so the
+      # sensor zero varies. Use curvature control (yawRate feedback) to avoid the
+      # steeringAngleDeg offset polluting actuators.curvature via the angle PID loop.
+      ret.steerControlType = structs.CarParams.SteerControlType.curvature
       ret.steerActuatorDelay = 0.3
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
 

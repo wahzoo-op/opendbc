@@ -103,13 +103,14 @@ class CarController(CarControllerBase):
 
     ### lateral control ###
     if self.CP.flags & FordFlags.APA:
-      # APA angle-based steering for Edge: send at 33Hz via Lane_Assist_Data1
-      # LaRefAng_No_Req expects road wheel angle in mrad relative to straight (0 = drive straight).
-      # Convert planner curvature (1/m) to road wheel angle: angle_mrad = curvature * wheelbase * 1000
-      # This avoids the pinion sensor offset baked into actuators.steeringAngleDeg.
+      # APA steering for Edge via Lane_Assist_Data1 at 33Hz.
+      # LaRefAng_No_Req is the target PINION angle in mrad (±102.4 mrad = ±5.86° pinion).
+      # Convert curvature → road wheel angle (× wheelbase) → pinion angle (× steerRatio) → mrad (× 1000).
+      # Using actuators.curvature (from yawRate-based LatControlCurvature) avoids the
+      # steeringAngleDeg sensor-offset bias that re-initializes each power cycle.
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
-          angle_mrad = float(np.clip(actuators.curvature * self.CP.wheelbase * 1000,
+          angle_mrad = float(np.clip(actuators.curvature * self.CP.steerRatio * self.CP.wheelbase * 1000,
                                      -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
         else:
           angle_mrad = 0.
@@ -217,8 +218,8 @@ class CarController(CarControllerBase):
 
     new_actuators = actuators.as_builder()
     if self.CP.flags & FordFlags.APA:
-      # Feed back the curvature equivalent of the applied mrad for the lateral controller
-      new_actuators.curvature = self.apply_angle_last / (self.CP.wheelbase * 1000)
+      # Feed back applied curvature for the lateral controller's anti-windup
+      new_actuators.curvature = self.apply_angle_last / (self.CP.steerRatio * self.CP.wheelbase * 1000)
     else:
       new_actuators.curvature = self.apply_curvature_last
     new_actuators.accel = self.accel
