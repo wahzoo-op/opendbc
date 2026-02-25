@@ -44,9 +44,11 @@ def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, c
   Frequency is 33Hz.
   """
   if enabled:
-    # Action 2 matches ford-devel-lka (Lkas_Action=2 in old DBC) which worked on Edge.
-    # LdwActvStats_D_Req=3, LdwActvIntns_D_Req=2 matches old Lkas_Alert=0xe bit pattern.
-    action = 2
+    # action=2: LkaStandIntervLeft  (negative angle = steer left,  correct rightward drift)
+    # action=4: LkaStandIntervRight (positive angle = steer right, correct leftward drift)
+    # Both are allowed by panda in APA mode. Select based on sign so the PSCM
+    # applies torque in the correct direction for bidirectional lane centering.
+    action = 2 if angle <= 0 else 4
     ldw_stats = 3
     ldw_intns = 2
   else:

@@ -10,13 +10,8 @@ from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 
-# APA angle limits (degrees), speed breakpoints (m/s)
-APA_ANGLE_MAX_BP = [0., 16.1]     # 0 mph, 36 mph
-APA_ANGLE_MAX_V = [40., 15.]      # max angle degrees at each speed
-APA_ANGLE_DELTA_V = [5., .8, .15]    # windup rate limits deg/step
-APA_ANGLE_DELTA_VU = [5., 3.5, 0.4]  # unwind rate limits deg/step
-APA_ANGLE_DELTA_BP = [0., 5., 15.]   # speed breakpoints for rate limits
-APA_DEG_TO_MRAD = math.pi / 180. * 1000.  # degrees to milliradians for LaRefAng_No_Req
+# APA: LaRefAng_No_Req signal range (mrad) for road wheel angle commands
+APA_ANGLE_MRAD_MAX = 102.4  # ±102.4 mrad = ±5.86 deg road wheel (signal hardware limit)
 
 # CAN FD limits:
 # Limit to average banked road since safety doesn't have the roll
@@ -109,21 +104,18 @@ class CarController(CarControllerBase):
     ### lateral control ###
     if self.CP.flags & FordFlags.APA:
       # APA angle-based steering for Edge: send at 33Hz via Lane_Assist_Data1
+      # LaRefAng_No_Req expects road wheel angle in mrad relative to straight (0 = drive straight).
+      # Convert planner curvature (1/m) to road wheel angle: angle_mrad = curvature * wheelbase * 1000
+      # This avoids the pinion sensor offset baked into actuators.steeringAngleDeg.
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
-          angle_mrad = actuators.steeringAngleDeg * APA_DEG_TO_MRAD
-          angle_lim = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_MAX_BP, APA_ANGLE_MAX_V)) * APA_DEG_TO_MRAD
-          angle_mrad = float(np.clip(angle_mrad, -angle_lim, angle_lim))
-          # rate limiting
-          if angle_mrad > self.apply_angle_last:
-            max_delta = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_DELTA_BP, APA_ANGLE_DELTA_V)) * APA_DEG_TO_MRAD
-          else:
-            max_delta = float(np.interp(CS.out.vEgoRaw, APA_ANGLE_DELTA_BP, APA_ANGLE_DELTA_VU)) * APA_DEG_TO_MRAD
-          angle_mrad = float(np.clip(angle_mrad, self.apply_angle_last - max_delta, self.apply_angle_last + max_delta))
+          angle_mrad = float(np.clip(actuators.curvature * self.CP.wheelbase * 1000,
+                                     -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
         else:
           angle_mrad = 0.
         self.apply_angle_last = angle_mrad
-        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, CC.latActive))
+        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, CC.latActive,
+                                                          curvature=actuators.curvature))
 
     else:
       # LCA curvature-based steering for all other supported Ford vehicles
@@ -225,7 +217,8 @@ class CarController(CarControllerBase):
 
     new_actuators = actuators.as_builder()
     if self.CP.flags & FordFlags.APA:
-      new_actuators.steeringAngleDeg = self.apply_angle_last / APA_DEG_TO_MRAD
+      # Feed back the curvature equivalent of the applied mrad for the lateral controller
+      new_actuators.curvature = self.apply_angle_last / (self.CP.wheelbase * 1000)
     else:
       new_actuators.curvature = self.apply_curvature_last
     new_actuators.accel = self.accel
