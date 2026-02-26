@@ -111,7 +111,12 @@ class CarController(CarControllerBase):
 
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
-          angle_mrad = float(np.clip(actuators.curvature * self.CP.steerRatio * self.CP.wheelbase * 1000,
+          # Use the angle controller's output (steeringAngleDeg) converted to mrad, not raw
+          # planner curvature. actuators.curvature is the planner input to the angle controller;
+          # actuators.steeringAngleDeg is the refined output that accounts for vehicle dynamics.
+          # The old C2 branch used steerAngle * DEG_TO_MRAD — same thing.
+          # PSCM LaRefAng_No_Req is steering wheel angle in mrad on the 2015-19 Edge.
+          angle_mrad = float(np.clip(actuators.steeringAngleDeg * np.pi / 180.0 * 1000.0,
                                      -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
         else:
           angle_mrad = 0.
