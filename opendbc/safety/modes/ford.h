@@ -229,10 +229,12 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
   if (msg->addr == FORD_Lane_Assist_Data1) {
     unsigned int action = msg->data[0] >> 5;
     if (ford_apa) {
-      // APA mode: allow action 2 (LkaStandIntervLeft) and 4 (LkaStandIntervRight)
-      // for direct angle control. Zero out when controls not allowed.
-      bool valid_action = (action == 0U) || (action == 2U) || (action == 4U);
-      if (!valid_action || (!controls_allowed && action != 0U)) {
+      // APA mode: allow action 2 (LkaStandIntervLeft), 4 (LkaStandIntervRight),
+      // and 7 (NotUsed/idle) for direct angle control. Action 7 is the IPMA's
+      // idle state and must be sent when not commanding to keep the PSCM in
+      // APA-ready mode (matching the working C2 branch behavior).
+      bool valid_action = (action == 0U) || (action == 2U) || (action == 4U) || (action == 7U);
+      if (!valid_action || (!controls_allowed && (action != 0U) && (action != 7U))) {
         tx = false;
       }
     } else {
@@ -352,16 +354,18 @@ static safety_config ford_init(uint16_t param) {
   };
 
   // APA (Active Park Assist) / PINION_ALT mode used on 2015-19 Ford Edge.
-  // The stock IPMA continues to broadcast Lane_Assist_Data1, ACCDATA_3, and IPMA_Data
-  // on the main HS-CAN via the GWM gateway. Since we coexist with the stock IPMA
-  // rather than replacing it, all relay checks must be disabled to avoid a false
-  // relay malfunction fault. LateralMotionControl and ACCDATA are also relayed by the
-  // GWM on this platform, so check_relay is disabled for them too.
+  // The stock IPMA broadcasts Lane_Assist_Data1 on bus 2 (camera bus). The panda's
+  // default forwarding would relay this to bus 0, causing the PSCM to see interleaved
+  // action=7 (IPMA idle) and action=2 (our steer command) — which prevents the PSCM
+  // from applying torque. Setting check_relay=true for 0x3CA blocks this forwarding
+  // so the PSCM only sees our messages. CAN bus analysis confirms no GWM gateway
+  // forwarding of 0x3CA to bus 0, so this won't trigger a false relay malfunction.
+  // Other IPMA messages (ACCDATA_3, IPMA_Data) keep check_relay=false to coexist.
   static const CanMsg FORD_APA_TX_MSGS[] = {
     {FORD_Steering_Data_FD1, 0, 8, .check_relay = false},
     {FORD_Steering_Data_FD1, 2, 8, .check_relay = false},
     {FORD_ACCDATA_3, 0, 8, .check_relay = false},
-    {FORD_Lane_Assist_Data1, 0, 8, .check_relay = false},
+    {FORD_Lane_Assist_Data1, 0, 8, .check_relay = true},
     {FORD_IPMA_Data, 0, 8, .check_relay = false},
     {FORD_LateralMotionControl, 0, 8, .check_relay = false},
     {FORD_ACCDATA, 0, 8, .check_relay = false},

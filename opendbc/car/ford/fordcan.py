@@ -52,11 +52,13 @@ def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, c
     ldw_stats = 3
     ldw_intns = 2
   else:
-    # action=0 (LkaNoInterv). Panda APA safety only permits {0, 2, 4} on 0x3CA;
-    # action=7 (NotUsed) is rejected and causes txBlocked to accumulate.
-    action = 0
-    ldw_stats = 0
-    ldw_intns = 0
+    # action=7 (NotUsed/idle) matches the IPMA's idle state and the working C2 branch
+    # behavior (which sent action=0xf, masked to 7 in the 3-bit field). Keeps the PSCM
+    # in APA-ready mode between active steering commands. Lkas_Alert=0xe (LdwActvStats=3,
+    # LdwActvIntns=2) is also sent always, matching the C2 branch.
+    action = 7
+    ldw_stats = 3
+    ldw_intns = 2
   values = {
     "LkaActvStats_D2_Req": action,
     "LaRefAng_No_Req": angle,

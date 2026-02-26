@@ -104,10 +104,10 @@ class CarController(CarControllerBase):
     ### lateral control ###
     if self.CP.flags & FordFlags.APA:
       # APA steering for Edge via Lane_Assist_Data1 (0x3CA) at 33Hz.
-      # Send action=2 whenever latActive. LaActAvail_D_Actl transitions to 2 or 3 in
-      # response to receiving action=2 (it's not a precondition — sending action=2 causes
-      # it). Gating on LaActAvail creates a deadlock. The PSCM denies (LaActDeny=1) at
-      # speeds above ~7 m/s; below ~7 m/s (25 km/h) it accepts and LaActAvail rises.
+      # Send action=2 whenever latActive, action=7 (idle) otherwise. The IPMA's 0x3CA
+      # forwarding from bus 2 is blocked by check_relay=true in panda safety so the PSCM
+      # only sees our messages. LaActAvail_D_Actl transitions to 3 in response to
+      # receiving action=2. Gating on LaActAvail creates a deadlock.
 
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
