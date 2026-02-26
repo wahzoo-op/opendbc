@@ -103,19 +103,22 @@ class CarController(CarControllerBase):
 
     ### lateral control ###
     if self.CP.flags & FordFlags.APA:
-      # APA steering for Edge via Lane_Assist_Data1 at 33Hz.
-      # LaRefAng_No_Req is the target PINION angle in mrad (±102.4 mrad = ±5.86° pinion).
-      # Convert curvature → road wheel angle (× wheelbase) → pinion angle (× steerRatio) → mrad (× 1000).
-      # Using actuators.curvature (from yawRate-based LatControlCurvature) avoids the
-      # steeringAngleDeg sensor-offset bias that re-initializes each power cycle.
+      # APA steering for Edge via Lane_Assist_Data1 (0x3CA) at 33Hz.
+      # The working Comma 2 branch (ford-devel-lka) only sent action=2 when the PSCM
+      # reported LaActAvail_D_Actl in [2, 3] ("LCA/LKA available"). Sending action=2
+      # when LaActAvail=0 triggers LaActDeny_B_Actl=1, causing the PSCM to refuse
+      # commands. LaActAvail is 2 or 3 only at low speed (<~7 m/s, ~25 km/h).
+      apa_pscm_ready = CS.lkas_state in (2, 3)  # LaActAvail_D_Actl: 2=LCA/LKA avail, 3=all avail
+      apa_active = CC.latActive and apa_pscm_ready
+
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
-        if CC.latActive:
+        if apa_active:
           angle_mrad = float(np.clip(actuators.curvature * self.CP.steerRatio * self.CP.wheelbase * 1000,
                                      -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
         else:
           angle_mrad = 0.
         self.apply_angle_last = angle_mrad
-        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, CC.latActive,
+        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, apa_active,
                                                           curvature=actuators.curvature))
 
       # Also send LCA curvature command at 20Hz via LateralMotionControl (0x3D3).
