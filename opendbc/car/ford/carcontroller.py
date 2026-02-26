@@ -104,21 +104,19 @@ class CarController(CarControllerBase):
     ### lateral control ###
     if self.CP.flags & FordFlags.APA:
       # APA steering for Edge via Lane_Assist_Data1 (0x3CA) at 33Hz.
-      # The working Comma 2 branch (ford-devel-lka) only sent action=2 when the PSCM
-      # reported LaActAvail_D_Actl in [2, 3] ("LCA/LKA available"). Sending action=2
-      # when LaActAvail=0 triggers LaActDeny_B_Actl=1, causing the PSCM to refuse
-      # commands. LaActAvail is 2 or 3 only at low speed (<~7 m/s, ~25 km/h).
-      apa_pscm_ready = CS.lkas_state in (2, 3)  # LaActAvail_D_Actl: 2=LCA/LKA avail, 3=all avail
-      apa_active = CC.latActive and apa_pscm_ready
+      # Send action=2 whenever latActive. LaActAvail_D_Actl transitions to 2 or 3 in
+      # response to receiving action=2 (it's not a precondition — sending action=2 causes
+      # it). Gating on LaActAvail creates a deadlock. The PSCM denies (LaActDeny=1) at
+      # speeds above ~7 m/s; below ~7 m/s (25 km/h) it accepts and LaActAvail rises.
 
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
-        if apa_active:
+        if CC.latActive:
           angle_mrad = float(np.clip(actuators.curvature * self.CP.steerRatio * self.CP.wheelbase * 1000,
                                      -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
         else:
           angle_mrad = 0.
         self.apply_angle_last = angle_mrad
-        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, apa_active,
+        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, CC.latActive,
                                                           curvature=actuators.curvature))
 
       # Also send LCA curvature command at 20Hz via LateralMotionControl (0x3D3).
