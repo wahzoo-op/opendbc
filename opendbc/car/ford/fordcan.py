@@ -52,11 +52,9 @@ def create_apa_steer_command(packer, CAN: CanBus, angle: float, enabled: bool, c
     ldw_stats = 3
     ldw_intns = 2
   else:
-    # action=7 (NotUsed) = "IPMA has nothing to request" — same as what the stock IPMA
-    # sends during normal driving (observed as action=7 on bus+128 in CAN logs).
-    # The old C2 branch used 0xf in a 4-bit field which the PSCM also treated as NotUsed.
-    # action=0 (LkaNoInterv) is an active "disable LKA" command that suppresses LaActAvail.
-    action = 7
+    # action=0 (LkaNoInterv). Panda APA safety only permits {0, 2, 4} on 0x3CA;
+    # action=7 (NotUsed) is rejected and causes txBlocked to accumulate.
+    action = 0
     ldw_stats = 0
     ldw_intns = 0
   values = {
