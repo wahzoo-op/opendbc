@@ -56,6 +56,8 @@ class CarInterface(CarInterfaceBase):
 
     if ret.flags & FordFlags.APA:
       ret.steerActuatorDelay = 0.3
+      # TESTING: bypass panda safety with allOutput mode so we don't need to rebuild firmware
+      ret.safetyConfigs[-1].safetyModel = structs.CarParams.SafetyModel.allOutput
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
 
 
