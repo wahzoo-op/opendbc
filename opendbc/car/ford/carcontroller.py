@@ -10,8 +10,10 @@ from opendbc.car.interfaces import CarControllerBase, V_CRUISE_MAX
 LongCtrlState = structs.CarControl.Actuators.LongControlState
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 
-# APA: LaRefAng_No_Req signal range (mrad) for road wheel angle commands
-APA_ANGLE_MRAD_MAX = 102.4  # ±102.4 mrad = ±5.86 deg road wheel (signal hardware limit)
+# APA: LaRefAng_No_Req signal range (mrad) for steering angle commands.
+# 12-bit unsigned with factor=0.05, offset=-102.4. Max raw=4095 → 102.35 mrad.
+# Using 102.4 causes raw=4096 which overflows 12 bits to 0 → sign flip to -102.4!
+APA_ANGLE_MRAD_MAX = 102.35  # max encodable value (4095 * 0.05 - 102.4)
 
 # CAN FD limits:
 # Limit to average banked road since safety doesn't have the roll
@@ -111,13 +113,15 @@ class CarController(CarControllerBase):
 
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
-          # Use the angle controller's output (steeringAngleDeg) converted to mrad, not raw
-          # planner curvature. actuators.curvature is the planner input to the angle controller;
-          # actuators.steeringAngleDeg is the refined output that accounts for vehicle dynamics.
-          # The old C2 branch used steerAngle * DEG_TO_MRAD — same thing.
-          # PSCM LaRefAng_No_Req is steering wheel angle in mrad on the 2015-19 Edge.
+          # Convert desired steering wheel angle (deg) to mrad for LaRefAng_No_Req.
+          # The PSCM's APA servo has high gain and overshoots if we step too fast.
           angle_mrad = float(np.clip(actuators.steeringAngleDeg * np.pi / 180.0 * 1000.0,
                                      -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
+          # Rate limit: max ~5 mrad per 33Hz step ≈ 165 mrad/s ≈ 9.5 deg/s steering wheel.
+          # Prevents PSCM overshoot from step inputs while allowing smooth lane tracking.
+          max_delta = 5.0
+          angle_mrad = float(np.clip(angle_mrad, self.apply_angle_last - max_delta,
+                                     self.apply_angle_last + max_delta))
         else:
           angle_mrad = 0.
         self.apply_angle_last = angle_mrad
