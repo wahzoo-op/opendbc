@@ -354,18 +354,17 @@ static safety_config ford_init(uint16_t param) {
   };
 
   // APA (Active Park Assist) / PINION_ALT mode used on 2015-19 Ford Edge.
-  // The stock IPMA broadcasts Lane_Assist_Data1 on bus 2 (camera bus). The panda's
-  // default forwarding would relay this to bus 0, causing the PSCM to see interleaved
-  // action=7 (IPMA idle) and action=2 (our steer command) — which prevents the PSCM
-  // from applying torque. Setting check_relay=true for 0x3CA blocks this forwarding
-  // so the PSCM only sees our messages. CAN bus analysis confirms no GWM gateway
-  // forwarding of 0x3CA to bus 0, so this won't trigger a false relay malfunction.
-  // Other IPMA messages (ACCDATA_3, IPMA_Data) keep check_relay=false to coexist.
+  // The stock IPMA broadcasts Lane_Assist_Data1 (0x3CA) on bus 2 at ~33Hz with action=7.
+  // The panda forwards this to bus 0. Our messages (action=2 steer, action=7 idle) are
+  // interleaved with the IPMA's action=7 on bus 0. The working C2 branch proved this
+  // interleaving works — the PSCM accepts our action=2 commands alongside the IPMA's
+  // action=7 stream. Blocking IPMA 0x3CA (check_relay=true) causes PSCM to set DTC
+  // U0415 (IPMA communication lost) and LaActDeny=1 after ~30 seconds.
   static const CanMsg FORD_APA_TX_MSGS[] = {
     {FORD_Steering_Data_FD1, 0, 8, .check_relay = false},
     {FORD_Steering_Data_FD1, 2, 8, .check_relay = false},
     {FORD_ACCDATA_3, 0, 8, .check_relay = false},
-    {FORD_Lane_Assist_Data1, 0, 8, .check_relay = true},
+    {FORD_Lane_Assist_Data1, 0, 8, .check_relay = false},
     {FORD_IPMA_Data, 0, 8, .check_relay = false},
     {FORD_LateralMotionControl, 0, 8, .check_relay = false},
     {FORD_ACCDATA, 0, 8, .check_relay = false},
