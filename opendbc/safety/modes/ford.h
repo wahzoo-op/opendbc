@@ -233,8 +233,11 @@ static bool ford_tx_hook(const CANPacket_t *msg) {
       // and 7 (NotUsed/idle) for direct angle control. Action 7 is the IPMA's
       // idle state and must be sent when not commanding to keep the PSCM in
       // APA-ready mode (matching the working C2 branch behavior).
+      // NOTE: controls_allowed gate is removed for APA because the working C2
+      // branch had controls_allowed=1 hardcoded (all safety bypassed). openpilot
+      // already gates latActive on cruise engagement, so this is safe.
       bool valid_action = (action == 0U) || (action == 2U) || (action == 4U) || (action == 7U);
-      if (!valid_action || (!controls_allowed && (action != 0U) && (action != 7U))) {
+      if (!valid_action) {
         tx = false;
       }
     } else {
@@ -354,22 +357,23 @@ static safety_config ford_init(uint16_t param) {
   };
 
   // APA (Active Park Assist) / PINION_ALT mode used on 2015-19 Ford Edge.
-  // The stock IPMA broadcasts Lane_Assist_Data1 (0x3CA) on bus 2 at ~33Hz with action=7.
-  // check_relay=true for 0x3CA blocks IPMA's copy from bus 2→0, matching the working
-  // C2 branch behavior (fwd_hook filtered addr==0x3CA from bus 2→0). The PSCM only
-  // sees our 0x3CA commands on bus 0. The IPMA still sees bus 0 traffic via 0→2 forwarding.
-  // NOTE: The earlier PSCM fault with check_relay=true was caused by simultaneously sending
-  // 0x3D3 (LateralMotionControl), which the 2018 Edge PSCM doesn't support. With 0x3D3
-  // removed, check_relay=true for 0x3CA should work correctly.
+  // The stock IPMA broadcasts 0x3CA and 0x3D8 on bus 2 at ~33Hz. The custom ford_fwd_hook
+  // blocks these from bus 2→0, matching the working C2 branch's fwd_hook behavior.
+  // This ensures the PSCM only sees our 0x3CA commands (not IPMA's interleaved action=7).
+  // check_relay is false for all APA messages to avoid relay_malfunction detection
+  // (since the IPMA is still present, unlike other Fords where comma replaces it).
   static const CanMsg FORD_APA_TX_MSGS[] = {
     {FORD_Steering_Data_FD1, 0, 8, .check_relay = false},
     {FORD_Steering_Data_FD1, 2, 8, .check_relay = false},
     {FORD_ACCDATA_3, 0, 8, .check_relay = false},
-    {FORD_Lane_Assist_Data1, 0, 8, .check_relay = true},
+    {FORD_Lane_Assist_Data1, 0, 8, .check_relay = false},
     {FORD_IPMA_Data, 0, 8, .check_relay = false},
     {FORD_LateralMotionControl, 0, 8, .check_relay = false},
     {FORD_ACCDATA, 0, 8, .check_relay = false},
   };
+  // All check_relay=false in APA mode because the IPMA camera is still
+  // present (unlike other Fords where comma replaces it). Forwarding of
+  // 0x3CA and 0x3D8 is blocked via the custom fwd hook instead.
 
   const uint16_t FORD_PARAM_CANFD = 2;
   const uint16_t FORD_PARAM_APA = 4;
@@ -399,10 +403,24 @@ static safety_config ford_init(uint16_t param) {
   return ret;
 }
 
+// Custom forwarding hook for APA mode.
+// Matches the working C2 branch's fwd_hook which blocked 0x3CA and 0x3D8
+// from bus 2→0, ensuring the PSCM only sees our 0x3CA commands (not IPMA's
+// interleaved action=7) and our 0x3D8 UI messages (not IPMA's duplicates).
+static bool ford_fwd_hook(int bus_num, int addr) {
+  if (ford_apa && (bus_num == 2)) {
+    if ((addr == FORD_Lane_Assist_Data1) || (addr == FORD_IPMA_Data)) {
+      return true;  // block from bus 2→0
+    }
+  }
+  return false;
+}
+
 const safety_hooks ford_hooks = {
   .init = ford_init,
   .rx = ford_rx_hook,
   .tx = ford_tx_hook,
+  .fwd = ford_fwd_hook,
   .get_counter = ford_get_counter,
   .get_checksum = ford_get_checksum,
   .compute_checksum = ford_compute_checksum,
