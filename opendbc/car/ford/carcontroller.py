@@ -128,6 +128,14 @@ class CarController(CarControllerBase):
         can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, CC.latActive,
                                                           curvature=actuators.curvature))
 
+      # Debug: log APA state every 1 second (100 frames at 100Hz)
+      if (self.frame % 100) == 0:
+        print(f"APA: latActive={CC.latActive} angle={self.apply_angle_last:.1f}mrad "
+              f"lkas_state={CS.lkas_state} steerAngle={CS.out.steeringAngleDeg:.1f}deg "
+              f"cruiseEnabled={CS.out.cruiseState.enabled} cruiseAvail={CS.out.cruiseState.available} "
+              f"steerFaultT={CS.out.steerFaultTemporary} steerFaultP={CS.out.steerFaultPermanent} "
+              f"frame={self.frame}")
+
       # NOTE: Do NOT send 0x3D3 (LateralMotionControl) in APA mode.
       # The 2018 Edge PSCM doesn't support LCA and faults (LaActDeny=1) when
       # receiving unexpected 0x3D3 messages. The old working C2 branch only sent 0x3CA.
