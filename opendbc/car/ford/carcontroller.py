@@ -113,6 +113,12 @@ class CarController(CarControllerBase):
 
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
+          # On engagement, seed from current steering angle so the PSCM doesn't see a step
+          # change from 0. Without this the APA servo snaps the wheel to center on activation.
+          if not self.lkas_enabled_last:
+            self.apply_angle_last = float(np.clip(CS.out.steeringAngleDeg * np.pi / 180.0 * 1000.0,
+                                                  -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
+
           # Convert desired steering wheel angle (deg) to mrad for LaRefAng_No_Req.
           # The PSCM's APA servo has high gain and overshoots if we step too fast.
           angle_mrad = float(np.clip(actuators.steeringAngleDeg * np.pi / 180.0 * 1000.0,
