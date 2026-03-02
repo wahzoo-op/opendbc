@@ -215,8 +215,11 @@ class CarController(CarControllerBase):
     ### ui ###
     send_ui = (self.main_on_last != main_on) or (self.lkas_enabled_last != CC.latActive) or (self.steer_alert_last != steer_alert)
     # send lkas ui msg at 1Hz or if ui state changes
-    if (self.frame % CarControllerParams.LKAS_UI_STEP) == 0 or send_ui:
-      can_sends.append(fordcan.create_lkas_ui_msg(self.packer, self.CAN, main_on, CC.latActive, steer_alert, hud_control, CS.lkas_status_stock_values))
+    # In APA mode, the stock IPMA's 0x3D8 passes through via fwd (no longer blocked),
+    # so we don't send our own to avoid bus collisions and flashing lane markings.
+    if not (self.CP.flags & FordFlags.APA):
+      if (self.frame % CarControllerParams.LKAS_UI_STEP) == 0 or send_ui:
+        can_sends.append(fordcan.create_lkas_ui_msg(self.packer, self.CAN, main_on, CC.latActive, steer_alert, hud_control, CS.lkas_status_stock_values))
 
     # send acc ui msg at 5Hz or if ui state changes
     if hud_control.leadDistanceBars != self.lead_distance_bars_last:

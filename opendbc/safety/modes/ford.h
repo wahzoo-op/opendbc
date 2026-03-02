@@ -358,8 +358,8 @@ static safety_config ford_init(uint16_t param) {
 
   // APA (Active Park Assist) / PINION_ALT mode used on 2015-19 Ford Edge.
   // The stock IPMA broadcasts 0x3CA and 0x3D8 on bus 2 at ~33Hz. The custom ford_fwd_hook
-  // blocks these from bus 2→0, matching the working C2 branch's fwd_hook behavior.
-  // This ensures the PSCM only sees our 0x3CA commands (not IPMA's interleaved action=7).
+  // blocks only 0x3CA from bus 2→0 so the PSCM only sees our steering commands. 0x3D8
+  // (IPMA_Data) passes through so the stock IPMA drives the lane line IPC display.
   // check_relay is false for all APA messages to avoid relay_malfunction detection
   // (since the IPMA is still present, unlike other Fords where comma replaces it).
   static const CanMsg FORD_APA_TX_MSGS[] = {
@@ -404,12 +404,13 @@ static safety_config ford_init(uint16_t param) {
 }
 
 // Custom forwarding hook for APA mode.
-// Matches the working C2 branch's fwd_hook which blocked 0x3CA and 0x3D8
-// from bus 2→0, ensuring the PSCM only sees our 0x3CA commands (not IPMA's
-// interleaved action=7) and our 0x3D8 UI messages (not IPMA's duplicates).
+// Block only 0x3CA (Lane_Assist_Data1) from bus 2→0 so the PSCM only sees
+// our steering commands (not IPMA's interleaved action=7).
+// Let 0x3D8 (IPMA_Data) pass through so the stock IPMA drives the lane line
+// display on the IPC at its native ~33Hz rate, avoiding flashing.
 static bool ford_fwd_hook(int bus_num, int addr) {
   if (ford_apa && (bus_num == 2)) {
-    if ((addr == FORD_Lane_Assist_Data1) || (addr == FORD_IPMA_Data)) {
+    if (addr == FORD_Lane_Assist_Data1) {
       return true;  // block from bus 2→0
     }
   }
