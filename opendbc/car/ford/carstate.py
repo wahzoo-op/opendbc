@@ -66,10 +66,15 @@ class CarState(CarStateBase):
       # this signal is always 0 on non-CAN FD cars
       ret.steerFaultTemporary |= cp.vl["Lane_Assist_Data3_FD1"]["LatCtlSte_D_Stat"] not in (1, 2, 3)
 
-    if self.CP.flags & FordFlags.PINION_ALT:
-      # Track PSCM LKA availability for telemetry on the 2015-19 Edge.
-      # The PSCM starts at 0 by default until Lane_Assist_Data3_FD1 arrives, so any
-      # steerFaultTemporary check here would fire immediately and cause a controls mismatch.
+    if self.CP.flags & FordFlags.APA:
+      # Track PSCM APA availability on the 2015-19 Edge.
+      # LaActAvail_D_Actl: 2=available, 3=active tracking. Anything else means PSCM lockout.
+      self.lkas_state = cp.vl["Lane_Assist_Data3_FD1"]["LaActAvail_D_Actl"]
+      # Gate on cruise enabled + speed > 13 mph to avoid false fault at startup (signal starts
+      # at 0 before Lane_Assist_Data3_FD1 arrives) — matches old C2 branch lockout behavior.
+      if ret.cruiseState.enabled and ret.vEgo > 13. * CV.MPH_TO_MS:
+        ret.steerFaultTemporary |= self.lkas_state not in (2, 3)
+    elif self.CP.flags & FordFlags.PINION_ALT:
       self.lkas_state = cp.vl["Lane_Assist_Data3_FD1"]["LaActAvail_D_Actl"]
 
     # cruise state

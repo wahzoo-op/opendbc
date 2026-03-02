@@ -112,7 +112,10 @@ class CarController(CarControllerBase):
       # LaActAvail_D_Actl transitions to 3 in response to receiving action=2.
 
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
-        if CC.latActive:
+        # Only steer when PSCM is APA-ready (lkas_state 2=available, 3=active tracking).
+        # Matches old C2 branch: `if enabled and lkas_state in [2,3]: action = lkas_action`
+        apa_active = CC.latActive and CS.lkas_state in (2, 3)
+        if apa_active:
           # Send desired angle directly — no external rate limiting.
           # The old working C2 branch saturated at max within 2 frames (unit bug) and the
           # PSCM handled smoothing internally via its own servo controller. External rate
@@ -122,7 +125,7 @@ class CarController(CarControllerBase):
         else:
           angle_mrad = 0.
         self.apply_angle_last = angle_mrad
-        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, CC.latActive,
+        can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, apa_active,
                                                           curvature=actuators.curvature))
 
       # Debug: log APA state every 1 second (100 frames at 100Hz)
