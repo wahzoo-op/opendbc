@@ -113,21 +113,12 @@ class CarController(CarControllerBase):
 
       if (self.frame % CarControllerParams.APA_STEER_STEP) == 0:
         if CC.latActive:
-          # On engagement, seed from current steering angle so the PSCM doesn't see a step
-          # change from 0. Without this the APA servo snaps the wheel to center on activation.
-          if not self.lkas_enabled_last:
-            self.apply_angle_last = float(np.clip(CS.out.steeringAngleDeg * np.pi / 180.0 * 1000.0,
-                                                  -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
-
-          # Convert desired steering wheel angle (deg) to mrad for LaRefAng_No_Req.
-          # The PSCM's APA servo has high gain and overshoots if we step too fast.
+          # Send desired angle directly — no external rate limiting.
+          # The old working C2 branch saturated at max within 2 frames (unit bug) and the
+          # PSCM handled smoothing internally via its own servo controller. External rate
+          # limiting causes mid-range ramps that fight the PSCM's PID → oscillation → fault.
           angle_mrad = float(np.clip(actuators.steeringAngleDeg * np.pi / 180.0 * 1000.0,
                                      -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
-          # Rate limit: max ~5 mrad per 33Hz step ≈ 165 mrad/s ≈ 9.5 deg/s steering wheel.
-          # Prevents PSCM overshoot from step inputs while allowing smooth lane tracking.
-          max_delta = 5.0
-          angle_mrad = float(np.clip(angle_mrad, self.apply_angle_last - max_delta,
-                                     self.apply_angle_last + max_delta))
         else:
           angle_mrad = 0.
         self.apply_angle_last = angle_mrad
@@ -136,11 +127,10 @@ class CarController(CarControllerBase):
 
       # Debug: log APA state every 1 second (100 frames at 100Hz)
       if (self.frame % 100) == 0:
-        print(f"APA: latActive={CC.latActive} angle={self.apply_angle_last:.1f}mrad "
-              f"lkas_state={CS.lkas_state} steerAngle={CS.out.steeringAngleDeg:.1f}deg "
-              f"cruiseEnabled={CS.out.cruiseState.enabled} cruiseAvail={CS.out.cruiseState.available} "
-              f"steerFaultT={CS.out.steerFaultTemporary} steerFaultP={CS.out.steerFaultPermanent} "
-              f"frame={self.frame}")
+        des_mrad = actuators.steeringAngleDeg * np.pi / 180.0 * 1000.0
+        print(f"APA: lat={CC.latActive} sent={self.apply_angle_last:.1f}mrad des={des_mrad:.1f}mrad "
+              f"steer={CS.out.steeringAngleDeg:.1f}deg v={CS.out.vEgo:.1f} "
+              f"lkas={CS.lkas_state} fT={CS.out.steerFaultTemporary} fP={CS.out.steerFaultPermanent}")
 
       # NOTE: Do NOT send 0x3D3 (LateralMotionControl) in APA mode.
       # The 2018 Edge PSCM doesn't support LCA and faults (LaActDeny=1) when
