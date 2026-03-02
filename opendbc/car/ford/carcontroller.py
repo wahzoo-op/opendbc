@@ -116,11 +116,11 @@ class CarController(CarControllerBase):
         # Matches old C2 branch: `if enabled and lkas_state in [2,3]: action = lkas_action`
         apa_active = CC.latActive and CS.lkas_state in (2, 3)
         if apa_active:
-          # Send desired angle directly — no external rate limiting.
-          # The old working C2 branch saturated at max within 2 frames (unit bug) and the
-          # PSCM handled smoothing internally via its own servo controller. External rate
-          # limiting causes mid-range ramps that fight the PSCM's PID → oscillation → fault.
-          angle_mrad = float(np.clip(actuators.steeringAngleDeg * np.pi / 180.0 * 1000.0,
+          # PID lateral control: actuators.torque is the PID output (-1..1) which includes
+          # feedforward (desired_angle / APA_MAX_STEER_DEG) + P/I corrections for tracking error.
+          # Map to APA mrad range. The PID provides damping that prevents the saturation-driven
+          # oscillation seen with pure feedforward (LatControlAngle).
+          angle_mrad = float(np.clip(actuators.torque * APA_ANGLE_MRAD_MAX,
                                      -APA_ANGLE_MRAD_MAX, APA_ANGLE_MRAD_MAX))
         else:
           angle_mrad = 0.
@@ -130,9 +130,8 @@ class CarController(CarControllerBase):
 
       # Debug: log APA state every 1 second (100 frames at 100Hz)
       if (self.frame % 100) == 0:
-        des_mrad = actuators.steeringAngleDeg * np.pi / 180.0 * 1000.0
-        print(f"APA: lat={CC.latActive} sent={self.apply_angle_last:.1f}mrad des={des_mrad:.1f}mrad "
-              f"steer={CS.out.steeringAngleDeg:.1f}deg v={CS.out.vEgo:.1f} "
+        print(f"APA: lat={CC.latActive} torque={actuators.torque:.3f} sent={self.apply_angle_last:.1f}mrad "
+              f"steer={CS.out.steeringAngleDeg:.1f}deg desDeg={actuators.steeringAngleDeg:.1f} v={CS.out.vEgo:.1f} "
               f"lkas={CS.lkas_state} fT={CS.out.steerFaultTemporary} fP={CS.out.steerFaultPermanent}")
 
       # NOTE: Do NOT send 0x3D3 (LateralMotionControl) in APA mode.

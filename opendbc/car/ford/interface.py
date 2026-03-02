@@ -2,7 +2,7 @@ import numpy as np
 from opendbc.car import Bus, get_safety_config, structs
 from opendbc.car.carlog import carlog
 from opendbc.car.common.conversions import Conversions as CV
-from opendbc.car.ford.carcontroller import CarController
+from opendbc.car.ford.carcontroller import CarController, APA_ANGLE_MRAD_MAX
 from opendbc.car.ford.carstate import CarState
 from opendbc.car.ford.fordcan import CanBus
 from opendbc.car.ford.radar_interface import RadarInterface
@@ -11,11 +11,26 @@ from opendbc.car.interfaces import CarInterfaceBase
 
 TransmissionType = structs.CarParams.TransmissionType
 
+# APA max steering angle in degrees (102.35 mrad converted)
+APA_MAX_STEER_DEG = APA_ANGLE_MRAD_MAX / 1000.0 * 180.0 / np.pi  # ~5.86 degrees
+
 
 class CarInterface(CarInterfaceBase):
   CarState = CarState
   CarController = CarController
   RadarInterface = RadarInterface
+
+  @staticmethod
+  def get_steer_feedforward_apa(desired_angle, v_ego):
+    # Normalize desired angle to the APA signal range (±5.86°).
+    # This provides the baseline command to hold the desired angle.
+    # The PID P/I terms add corrections for tracking error.
+    return desired_angle / APA_MAX_STEER_DEG
+
+  def get_steer_feedforward_function(self):
+    if self.CP.flags & FordFlags.APA:
+      return self.get_steer_feedforward_apa
+    return CarInterfaceBase.get_steer_feedforward_default
 
   @staticmethod
   def get_pid_accel_limits(CP, current_speed, cruise_speed):
@@ -57,6 +72,20 @@ class CarInterface(CarInterfaceBase):
     if ret.flags & FordFlags.APA:
       ret.steerActuatorDelay = 0.3
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
+
+      # APA uses PID lateral control instead of pure angle feedforward.
+      # LatControlAngle has no feedback loop — it sends the desired angle directly.
+      # When desired angles exceed the ±5.86° APA signal range, the command saturates,
+      # the PSCM overshoots, and the model overcorrects → growing oscillation.
+      # PID with feedforward provides damping: feedforward holds the angle,
+      # P corrects tracking errors, I eliminates steady-state offset.
+      # Gains inspired by the old C2 branch's INDI tuning (outerLoopGain=3.5, timeConstant=2.0).
+      ret.steerControlType = structs.CarParams.SteerControlType.torque
+      ret.lateralTuning.pid.kpBP = [0.]
+      ret.lateralTuning.pid.kpV = [0.05]
+      ret.lateralTuning.pid.kiBP = [0.]
+      ret.lateralTuning.pid.kiV = [0.01]
+      ret.lateralTuning.pid.kf = 1.0  # feedforward scales desired_angle / APA_MAX_STEER_DEG
 
 
     if ret.flags & FordFlags.CANFD:
