@@ -82,10 +82,10 @@ class CarInterface(CarInterfaceBase):
       # Gains inspired by the old C2 branch's INDI tuning (outerLoopGain=3.5, timeConstant=2.0).
       ret.steerControlType = structs.CarParams.SteerControlType.torque
       ret.lateralTuning.pid.kpBP = [0.]
-      ret.lateralTuning.pid.kpV = [0.01]
+      ret.lateralTuning.pid.kpV = [0.005]
       ret.lateralTuning.pid.kiBP = [0.]
-      ret.lateralTuning.pid.kiV = [0.002]
-      ret.lateralTuning.pid.kf = 0.3  # feedforward scales desired_angle / APA_MAX_STEER_DEG
+      ret.lateralTuning.pid.kiV = [0.001]
+      ret.lateralTuning.pid.kf = 0.2  # feedforward scales desired_angle / APA_MAX_STEER_DEG
 
 
     if ret.flags & FordFlags.CANFD:
