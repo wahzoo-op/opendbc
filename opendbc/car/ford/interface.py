@@ -70,7 +70,7 @@ class CarInterface(CarInterfaceBase):
       ret.openpilotLongitudinalControl = True
 
     if ret.flags & FordFlags.APA:
-      ret.steerActuatorDelay = 0.3
+      ret.steerActuatorDelay = 0.6
       ret.safetyConfigs[-1].safetyParam |= FordSafetyFlags.APA.value
 
       # APA uses PID lateral control instead of pure angle feedforward.
