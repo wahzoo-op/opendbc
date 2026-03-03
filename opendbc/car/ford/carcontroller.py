@@ -125,8 +125,10 @@ class CarController(CarControllerBase):
         else:
           angle_mrad = 0.
         self.apply_angle_last = angle_mrad
+        # Send curvature only when active — the PSCM may interpret the curvature field
+        # even during idle (action=7), and large curvature from turns can trigger faults.
         can_sends.append(fordcan.create_apa_steer_command(self.packer, self.CAN, angle_mrad, apa_active,
-                                                          curvature=actuators.curvature))
+                                                          curvature=actuators.curvature if apa_active else 0.))
 
       # Debug: log APA state every 1 second (100 frames at 100Hz)
       if (self.frame % 100) == 0:
