@@ -85,7 +85,7 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.pid.kpV = [0.005]
       ret.lateralTuning.pid.kiBP = [0.]
       ret.lateralTuning.pid.kiV = [0.001]
-      ret.lateralTuning.pid.kf = 0.2  # feedforward scales desired_angle / APA_MAX_STEER_DEG
+      ret.lateralTuning.pid.kf = 0.15  # feedforward scales desired_angle / APA_MAX_STEER_DEG
 
 
     if ret.flags & FordFlags.CANFD:
